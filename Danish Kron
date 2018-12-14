@@ -1,0 +1,94 @@
+import pandas as pd 
+import numpy as np 
+import matplotlib.pyplot as plt 
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+from statsmodels.tsa.api import ExponentialSmoothing, SimpleExpSmoothing, Holt
+import statsmodels.api as sm
+
+#Importing data
+# dataframe
+df = pd.read_csv("Danish Kron.txt", sep='\t')
+print(df.axes)
+
+def mean (index):
+    index = 0
+    lowervalue = index + 1
+    uppervalue = index - 1
+    mean = (lowervalue + uppervalue)/2
+    
+def readfile (inpath):
+    with open (inpath, 'r') as infileobject:
+        lines = infileobject.readlines()
+    points = []
+    for line in lines:
+        columns = line.split("\t")
+        value = float(columns[1].replace('0', mean))
+        print(value)
+        points.append(value)
+    return points
+
+size = len(df)
+head = df[0:5]
+tail = df [size-5:]
+print("Head")
+print(head)
+print("Tail")
+print(tail)
+
+train = df[0:size-201]
+test = df[size-200:]
+
+df.DATE = pd.to_datetime(df.DATE,format="%Y-%m-%d")
+df.index = df.DATE 
+train.DATE = pd.to_datetime(train.DATE,format="%Y-%m-%d") 
+train.index = train.DATE 
+test.DATE = pd.to_datetime(train.DATE,format="%Y-%m-%d") 
+test.index = test.DATE 
+
+print("Naive")
+dd= np.asarray(train.VALUE)
+y_hat = test.copy()
+y_hat['naive'] = dd[len(dd)-1]
+rms = sqrt(mean_squared_error(test.VALUE, y_hat.naive))
+print("RMSE: ",rms)
+
+print("Simple Average")
+y_hat_avg = test.copy()
+y_hat_avg['avg_forecast'] = train['VALUE'].mean()
+rms = sqrt(mean_squared_error(test.VALUE, y_hat_avg.avg_forecast))
+print("RMSE: ",rms)
+
+print("Moving Average")
+windowsize = 15
+y_hat_avg = test.copy()
+y_hat_avg['moving_avg_forecast'] = train['VALUE'].rolling(windowsize).mean().iloc[-1]
+rms = sqrt(mean_squared_error(test.VALUE, y_hat_avg.moving_avg_forecast))
+print("RMSE: ",rms)
+
+print("Simple Exponential Smoothing")
+y_hat_avg = test.copy()
+alpha = 0.2
+fit2 = SimpleExpSmoothing(np.asarray(train['VALUE'])).fit(smoothing_level=alpha,optimized=False)
+y_hat_avg['SES'] = fit2.forecast(len(test))
+rms = sqrt(mean_squared_error(test.VALUE, y_hat_avg.SES))
+print("RMSE: ",rms)
+
+print("Holt")
+sm.tsa.seasonal_decompose(train.VALUE).plot()
+result = sm.tsa.stattools.adfuller(train.VALUE)
+
+y_hat_avg = test.copy()
+alpha = 0.4
+fit1 = Holt(np.asarray(train['VALUE'])).fit(smoothing_level = alpha,smoothing_slope = 0.1)
+y_hat_avg['Holt_linear'] = fit1.forecast(len(test))
+rms = sqrt(mean_squared_error(test.VALUE, y_hat_avg.Holt_linear))
+print("RMSE: ",rms)
+
+print("Holt-Winters")
+y_hat_avg = test.copy()
+seasons = 10
+fit1 = ExponentialSmoothing(np.asarray(train['VALUE']) ,seasonal_periods=seasons ,trend='add', seasonal='add',).fit()
+y_hat_avg['Holt_Winter'] = fit1.forecast(len(test))
+rms = sqrt(mean_squared_error(test.VALUE, y_hat_avg.Holt_Winter))
+print("RMSE: ",rms)
